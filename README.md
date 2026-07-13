@@ -1,3 +1,6 @@
+#RoboCopy_GUI
+
+
 # RoboCopy GUI (PowerShell + WPF)
 
 A lightweight Windows PowerShell GUI for running RoboCopy with common options. The app launches a separate PowerShell console to display live RoboCopy output and an exit-code summary, while the WPF window stays responsive and updates basic status.
