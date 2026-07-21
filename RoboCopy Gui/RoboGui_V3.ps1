@@ -1,3 +1,5 @@
+#RoboCopy_GUI 
+
 # Load required assemblies
 Add-Type -AssemblyName PresentationFramework
 

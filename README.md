@@ -1,4 +1,7 @@
 #RoboCopy_GUI
+#Github
+#Public
+
 
 
 # RoboCopy GUI (PowerShell + WPF)
