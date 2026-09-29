@@ -9,9 +9,9 @@ Add-Type -AssemblyName System.Windows.Forms
 
 # Metadata
 # Author: Seth (Oblivionx987)
-# Version: 1.1.0
+# Version: 1.2.0
 $script:Author = 'Seth (Oblivionx987)'
-$script:Version = '1.1.0'
+$script:Version = '1.2.0'
 
 # STA check (WPF ShowDialog requires STA)
 if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Threading.ApartmentState]::STA) {
@@ -34,6 +34,46 @@ try {
 $script:ToastLogo = $null
 if (Test-Path "$PSScriptRoot\robocopy-icon.png") {
     $script:ToastLogo = "$PSScriptRoot\robocopy-icon.png"
+}
+
+# Dark mode detection (auto, from Windows app-mode preference)
+function Get-IsDarkMode {
+    try {
+        $rk = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+        (Get-ItemProperty -Path $rk -Name AppsUseLightTheme -ErrorAction SilentlyContinue).AppsUseLightTheme -eq 0
+    } catch { $false }
+}
+
+function Apply-Theme {
+    param([bool]$Dark)
+    if ($Dark) {
+        $bg      = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(30,30,30))
+        $fg      = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(240,240,240))
+        $border  = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(63,63,70))
+        $inputBg = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(45,45,48))
+        $accent  = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(0,122,204))
+    } else {
+        $bg      = [System.Windows.Media.SolidColorBrush]::new([System.Windows.SystemColors]::WindowColor)
+        $fg      = [System.Windows.Media.SolidColorBrush]::new([System.Windows.SystemColors]::ControlTextColor)
+        $border  = [System.Windows.Media.SolidColorBrush]::new([System.Windows.SystemColors]::ControlDarkColor)
+        $inputBg = $bg
+        $accent  = [System.Windows.Media.SolidColorBrush]::new([System.Windows.SystemColors]::HighlightColor)
+    }
+    $window.Background = $bg
+    $window.Foreground = $fg
+    foreach ($tb in @($SourcePath,$DestinationPath,$LogPath)) {
+        $tb.Background  = $inputBg
+        $tb.Foreground = $fg
+        $tb.BorderBrush = $border
+        $tb.CaretBrush = $fg
+    }
+    foreach ($btn in @($BtnBrowseSrc,$BtnBrowseDst,$BtnBrowseLog,$BtnRun,$BtnCancel)) {
+        $btn.Background = $inputBg
+        $btn.Foreground = $fg
+        $btn.BorderBrush = $border
+    }
+    $ProgressBar.Background = $bg
+    $ProgressBar.Foreground  = $accent
 }
 
 # Settings persistence
@@ -71,6 +111,7 @@ function Save-Settings {
                 MT     = [bool]$ChkMT.IsChecked
                 DryRun = [bool]$ChkDryRun.IsChecked
                 Log    = [bool]$ChkLog.IsChecked
+                DefaultLog = [bool]$ChkDefaultLog.IsChecked
             }
         }
         $settings | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $script:SettingsPath -Encoding UTF8
@@ -98,6 +139,7 @@ try {
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -117,7 +159,11 @@ try {
         <TextBox Name="DestinationPath" Grid.Row="1" Grid.Column="1" Margin="10"/>
         <Button Name="BtnBrowseDst" Grid.Row="1" Grid.Column="2" Margin="10" Width="80" Content="Browse..."/>
 
-        <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Margin="10">
+        <TextBlock Grid.Row="2" Grid.Column="0" Margin="10" VerticalAlignment="Center">Log File Path:</TextBlock>
+        <TextBox Name="LogPath" Grid.Row="2" Grid.Column="1" Margin="10" ToolTip="Optional: path to log file. If empty, defaults to Destination\robocopy.log."/>
+        <Button Name="BtnBrowseLog" Grid.Row="2" Grid.Column="2" Margin="10" Width="80" Content="Browse..."/>
+
+        <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3" Margin="10">
             <CheckBox Name="ChkMirror" Content="Mirror (Deletes files not in the source)" ToolTip="Mirrors a directory tree (deletes files not in the source)."/>
             <CheckBox Name="ChkMove" Content="Move (Move files and directories)" ToolTip="Moves files and directories, deleting them from the source after they are copied."/>
             <CheckBox Name="ChkPurge" Content="Purge (Delete destination files/dirs that no longer exist in source)" ToolTip="Deletes destination files/dirs that no longer exist in the source."/>
@@ -129,14 +175,14 @@ try {
             <CheckBox Name="ChkDryRun" Content="Dry Run /L (preview only, no changes)" ToolTip="Lists files that would be copied without actually copying them."/>
             <Separator Margin="0,6,0,6"/>
             <CheckBox Name="ChkLog" Content="Log to file" ToolTip="Write Robocopy output to a log file."/>
-            <TextBox Name="LogPath" Margin="0,2,0,0" ToolTip="Optional: path to log file. If empty, defaults to Destination\robocopy.log."/>
+            <CheckBox Name="ChkDefaultLog" Content="Default log (C:\temp\robocopy.log)" ToolTip="Log to C:\temp\robocopy.log. Overrides the path field; creates C:\temp if missing."/>
         </StackPanel>
 
         <!-- Status display section -->
-        <TextBlock Name="StatusText" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3" Margin="10" FontWeight="Bold">Ready</TextBlock>
-        <ProgressBar Name="ProgressBar" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" Margin="10" Height="20" Minimum="0" Maximum="100" Value="0" IsIndeterminate="False"/>
+        <TextBlock Name="StatusText" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" Margin="10" FontWeight="Bold">Ready</TextBlock>
+        <ProgressBar Name="ProgressBar" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Margin="10" Height="20" Minimum="0" Maximum="100" Value="0" IsIndeterminate="False"/>
 
-        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Margin="10" HorizontalAlignment="Right" Orientation="Horizontal">
+        <StackPanel Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="3" Margin="10" HorizontalAlignment="Right" Orientation="Horizontal">
             <Button Name="BtnCancel" Width="100" Margin="0,0,10,0" Content="Cancel" IsEnabled="False"/>
             <Button Name="BtnRun" Width="100" Content="Run"/>
         </StackPanel>
@@ -156,6 +202,7 @@ $SourcePath = $window.FindName("SourcePath")
 $DestinationPath = $window.FindName("DestinationPath")
 $BtnBrowseSrc = $window.FindName("BtnBrowseSrc")
 $BtnBrowseDst = $window.FindName("BtnBrowseDst")
+$BtnBrowseLog = $window.FindName("BtnBrowseLog")
 $ChkMirror = $window.FindName("ChkMirror")
 $ChkMove = $window.FindName("ChkMove")
 $ChkPurge = $window.FindName("ChkPurge")
@@ -166,6 +213,7 @@ $ChkR = $window.FindName("ChkR")
 $ChkMT = $window.FindName("ChkMT")
 $ChkDryRun = $window.FindName("ChkDryRun")
 $ChkLog = $window.FindName("ChkLog")
+$ChkDefaultLog = $window.FindName("ChkDefaultLog")
 $LogPath = $window.FindName("LogPath")
 $BtnRun = $window.FindName("BtnRun")
 $BtnCancel = $window.FindName("BtnCancel")
@@ -191,6 +239,7 @@ if ($saved) {
         if ($null -ne $saved.Options.MT)     { $ChkMT.IsChecked    = [bool]$saved.Options.MT }
         if ($null -ne $saved.Options.DryRun) { $ChkDryRun.IsChecked = [bool]$saved.Options.DryRun }
         if ($null -ne $saved.Options.Log)    { $ChkLog.IsChecked   = [bool]$saved.Options.Log }
+        if ($null -ne $saved.Options.DefaultLog) { $ChkDefaultLog.IsChecked = [bool]$saved.Options.DefaultLog }
     }
     if ($saved.Window) {
         if ($saved.Window.Width -gt 0)  { $window.Width  = $saved.Window.Width }
@@ -199,6 +248,14 @@ if ($saved) {
         if ($saved.Window.Top -ge 0)    { $window.Top    = $saved.Window.Top }
     }
 }
+
+# Apply DefaultLog field-enablement from saved state (Default log disables the path field + Browse)
+$logFieldEnabled = -not [bool]$ChkDefaultLog.IsChecked
+$LogPath.IsEnabled = $logFieldEnabled
+$BtnBrowseLog.IsEnabled = $logFieldEnabled
+
+# Apply dark/light theme (auto-detected from Windows app-mode preference)
+Apply-Theme -Dark (Get-IsDarkMode)
 
 # Run-state tracking
 $script:process = $null
@@ -305,7 +362,13 @@ $BtnRun.Add_Click({
     if ($ChkMT.IsChecked)     { $opts += '/MT:8' }
     if ($ChkDryRun.IsChecked) { $opts += '/L' }
     $logFile = ''
-    if ($ChkLog.IsChecked) {
+    if ($ChkDefaultLog.IsChecked) {
+        if (-not (Test-Path 'C:\temp')) {
+            try { New-Item -ItemType Directory -Path 'C:\temp' -Force -ErrorAction Stop | Out-Null } catch {}
+        }
+        $logFile = 'C:\temp\robocopy.log'
+        $opts += "/LOG:$logFile"
+    } elseif ($ChkLog.IsChecked) {
         $logFile = $LogPath.Text
         if (-not $logFile) { $logFile = Join-Path -Path $dst -ChildPath 'robocopy.log' }
         $opts += "/LOG:$logFile"
@@ -433,6 +496,32 @@ $BtnBrowseDst.Add_Click({
         $DestinationPath.Text = $dialog.SelectedPath
     }
 })
+
+# Log path browse (SaveFileDialog - it's a .log file)
+$BtnBrowseLog.Add_Click({
+    $dialog = New-Object System.Windows.Forms.SaveFileDialog
+    $dialog.Filter = "Log files (*.log)|*.log|All files (*.*)|*.*"
+    $dialog.DefaultExt = 'log'
+    $dialog.Title = "Choose log file path"
+    if ($LogPath.Text) {
+        try {
+            $dir = [System.IO.Path]::GetDirectoryName($LogPath.Text)
+            if ($dir -and (Test-Path -LiteralPath $dir)) { $dialog.InitialDirectory = $dir }
+            $dialog.FileName = [System.IO.Path]::GetFileName($LogPath.Text)
+        } catch {}
+    }
+    if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+        $LogPath.Text = $dialog.FileName
+        $ChkLog.IsChecked = $true
+        $ChkDefaultLog.IsChecked = $false
+        $LogPath.IsEnabled = $true
+        $BtnBrowseLog.IsEnabled = $true
+    }
+})
+
+# Default log checkbox: toggle the path field + Browse button enablement
+$ChkDefaultLog.Add_Checked({ $LogPath.IsEnabled = $false; $BtnBrowseLog.IsEnabled = $false })
+$ChkDefaultLog.Add_Unchecked({ $LogPath.IsEnabled = $true;  $BtnBrowseLog.IsEnabled = $true })
 
 # Window close guard: save settings, warn if running, clean up temp files
 $window.Add_Closing({

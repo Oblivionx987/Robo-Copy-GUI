@@ -14,11 +14,14 @@ A lightweight Windows PowerShell GUI for running RoboCopy with common options. T
 ## Project Info
 
 - **Author**: Seth (Oblivionx987)
-- **Version**: 1.1.0
+- **Version**: 1.2.0
 
 ## Features
 
+- **Dark mode** (auto-detected): the UI follows your Windows app-mode preference (light or dark) automatically at startup. No toggle needed.
 - **Source/Destination** pickers via text boxes **and** Browse... buttons (folder dialog).
+- **Log File Path** row with a labeled text box and a **Browse...** button (save-file dialog, `*.log` filter) — same layout as Source/Destination.
+- **Default log** option: one checkbox logs to `C:\temp\robocopy.log` (creates `C:\temp` if missing); overrides the path field.
 - **Common switches**: `/MIR`, `/MOV`, `/PURGE`, `/E`, `/XO`, `/XN`, `/R:5`.
 - **Multi-threaded copy** (`/MT:8`) for faster large transfers.
 - **Dry Run** (`/L`) to preview what RoboCopy would copy without writing anything.
@@ -66,26 +69,27 @@ Note: If `robocopy-icon.png` is not present in this folder, toasts still work; t
 
 ## How to Run
 
-- Easiest: Double-click `Launch_RoboCopyGui.bat`.
+- Easiest: Double-click `Launch_RoboCopyGui.bat`. The cmd window closes immediately and the PowerShell host console is hidden — only the WPF window appears. (The robocopy transfer console still pops up when you run a transfer.)
 - Or from a PowerShell prompt (recommended: Windows PowerShell 5.1):
 
 ```powershell
 powershell.exe -STA -ExecutionPolicy Bypass -File ".\RoboGui_V3.ps1"
 ```
 
-> The `-STA` flag is required for WPF. The `.bat` launcher already includes it. If you launch without `-STA`, the script will detect this and prompt you to relaunch correctly.
+> The `-STA` flag is required for WPF. The `.bat` launcher already includes it (along with `-WindowStyle Hidden` to hide the host console). If you launch without `-STA`, the script will detect this and prompt you to relaunch correctly.
 
 ## Usage
 
 1. Enter a valid `Source Path` and `Destination Path` (or use the **Browse...** buttons).
-2. Select options as needed (see below).
-3. Click `Run`.
+2. Optionally enter a `Log File Path` (or use its **Browse...** button) and/or select logging options (see below).
+3. Select options as needed (see below).
+4. Click `Run`.
    - A new PowerShell console opens and runs RoboCopy, showing all output.
    - When RoboCopy finishes, the GUI status updates to show the exit code immediately.
    - The console explains the exit code and waits for a key press to close (so you can read the summary). Closing it does not affect the GUI.
    - If BurntToast is available, a completion toast appears.
-4. To stop a transfer in progress, click `Cancel`. The RoboCopy process tree is terminated and the GUI resets.
-5. Closing the GUI while a transfer is running prompts you to cancel first; temp files are cleaned up either way.
+5. To stop a transfer in progress, click `Cancel`. The RoboCopy process tree is terminated and the GUI resets.
+6. Closing the GUI while a transfer is running prompts you to cancel first; temp files are cleaned up either way.
 
 ## Options Explained
 
@@ -98,7 +102,8 @@ powershell.exe -STA -ExecutionPolicy Bypass -File ".\RoboGui_V3.ps1"
 - **/R:5**: Retry failed copies up to 5 times.
 - **/MT:8**: Use 8 threads for multi-threaded copying (faster for large trees).
 - **/L**: Dry run — list files that would be copied without actually copying them. Safe for previewing.
-- **Log to file**: Write RoboCopy output to a log file (defaults to `Destination\robocopy.log` if the path field is empty).
+- **Log to file**: Write RoboCopy output to a log file (defaults to `Destination\robocopy.log` if the path field is empty). Use the **Browse...** button next to "Log File Path" to pick a file via a save dialog; confirming auto-checks this option.
+- **Default log (C:\temp\robocopy.log)**: One-click logging to `C:\temp\robocopy.log`. Creates `C:\temp` if missing. Overrides the path field (disables it while checked). Takes precedence over "Log to file" if both are checked.
 
 Caution: Avoid combining **/MIR** and **/MOV** together; they imply different intentions (copy/mirror vs. move). The GUI warns you if both are selected.
 
@@ -129,6 +134,7 @@ RoboCopy uses a bit-flag exit code. Treat codes below 8 as success/no-fatal-erro
 
 ## Known Issues and Limitations
 
+- **Dark mode is detected at startup only.** If you toggle the Windows app-mode preference while the GUI is open, it will not re-theme until you relaunch. There is no manual light/dark toggle; it follows your system setting.
 - **Progress is not a live percentage.** The progress bar is indeterminate (marquee) during a transfer and fills to 100% at completion. Live parsing of RoboCopy output to drive a real percentage is not implemented; it could be added later by capturing RoboCopy stdout.
 - **The console window stays open until you press a key** after RoboCopy finishes. This is by design so you can read the exit-code summary. The GUI status and progress update independently (the moment RoboCopy exits), so you do not need to close the console to see results in the GUI.
 - **BurntToast is optional.** Without it, toast notifications are skipped; everything else works.
@@ -137,7 +143,7 @@ RoboCopy uses a bit-flag exit code. Treat codes below 8 as success/no-fatal-erro
 
 ## File List
 
-- `RoboGui_V3.ps1` — WPF UI and run logic (v1.1.0).
-- `Launch_RoboCopyGui.bat` — Convenience launcher using `-STA -ExecutionPolicy Bypass`.
+- `RoboGui_V3.ps1` — WPF UI and run logic (v1.2.0).
+- `Launch_RoboCopyGui.bat` — Convenience launcher using `-STA -WindowStyle Hidden -ExecutionPolicy Bypass` (cmd window closes immediately; host console hidden).
 - `.gitignore` — Ignores `settings.json` and `*.log`.
 - `settings.json` — Auto-generated on first close; stores window geometry, last paths, and checkbox states (gitignored).
