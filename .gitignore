@@ -1,0 +1,5 @@
+# User settings (window geometry, last paths, checkbox states)
+settings.json
+
+# Robocopy log files
+*.log
